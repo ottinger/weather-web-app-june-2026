@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather{% if weather and weather.city %} — {{ weather.city }}, {{ weather.state }}{% endif %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-top: #0d1b2e;
+      --bg-mid: #112240;
+      --bg-bot: #0d2818;
+      --card: rgba(255,255,255,0.06);
+      --card-hover: rgba(255,255,255,0.10);
+      --border: rgba(255,255,255,0.10);
+      --text: #e8f4fd;
+      --muted: #7fb3d3;
+      --accent: #4fc3f7;
+      --rain: #81d4fa;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bot) 100%);
+      min-height: 100vh;
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 1rem 4rem;
+    }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+
+    /* ── Search ── */
+    .search-form {
+      display: flex;
+      gap: 0.5rem;
+      max-width: 500px;
+      margin: 0 auto 2rem;
+    }
+    .search-form input {
+      flex: 1;
+      padding: 0.75rem 1.1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-form input:focus { border-color: var(--accent); }
+    .search-form input::placeholder { color: var(--muted); }
+    .search-form button {
+      padding: 0.75rem 1.5rem;
+      background: var(--accent);
+      color: #0d1b2e;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    .search-form button:hover { opacity: 0.85; }
+
+    /* ── Error ── */
+    .error {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.28);
+      color: #fca5a5;
+      padding: 0.9rem 1.2rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    /* ── Note / hint ── */
+    .note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 1.5rem;
+    }
+    .note a { color: var(--accent); text-decoration: none; }
+    .note a:hover { text-decoration: underline; }
+
+    /* ── Current conditions ── */
+    .current-card {
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2rem 2.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 2.5rem;
+    }
+    .current-icon img { width: 100px; height: 100px; }
+    .current-main { flex: 1; }
+    .current-location { font-size: 1rem; color: var(--muted); margin-bottom: 0.2rem; }
+    .current-period { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .current-temp {
+      font-size: 4rem;
+      font-weight: 200;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+      letter-spacing: -0.02em;
+    }
+    .current-desc { font-size: 1rem; color: var(--muted); margin-bottom: 0.75rem; }
+    .current-meta { display: flex; gap: 1.5rem; font-size: 0.88rem; color: var(--muted); flex-wrap: wrap; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    /* ── Hourly strip ── */
+    .hourly-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0.75rem 0.25rem;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+    .hourly-wrap::-webkit-scrollbar { height: 4px; }
+    .hourly-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .hourly-items { display: flex; gap: 0; min-width: max-content; }
+    .hourly-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.5rem 0.85rem;
+      border-radius: 10px;
+      min-width: 62px;
+      transition: background 0.15s;
+      cursor: default;
+    }
+    .hourly-item:hover { background: var(--card-hover); }
+    .hourly-time { font-size: 0.72rem; color: var(--muted); }
+    .hourly-item img { width: 30px; height: 30px; }
+    .hourly-temp { font-size: 0.9rem; font-weight: 500; }
+    .hourly-precip { font-size: 0.68rem; color: var(--rain); }
+
+    /* ── 7-day forecast ── */
+    .forecast-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .forecast-row {
+      display: grid;
+      grid-template-columns: 140px 48px 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .forecast-row:last-child { border-bottom: none; }
+    .forecast-row:hover { background: var(--card-hover); }
+    .forecast-day { font-size: 0.92rem; font-weight: 500; }
+    .forecast-day.night { color: var(--muted); font-size: 0.85rem; font-weight: 400; }
+    .forecast-row img { width: 40px; height: 40px; }
+    .forecast-desc {
+      font-size: 0.83rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .forecast-precip { font-size: 0.78rem; color: var(--rain); white-space: nowrap; min-width: 2.5rem; text-align: right; }
+    .forecast-temp { font-size: 0.95rem; font-weight: 500; white-space: nowrap; text-align: right; }
+    .forecast-temp.night { color: var(--muted); font-size: 0.88rem; font-weight: 400; }
+
+    /* ── Lookup history ── */
+    .history-section { margin-top: 3rem; }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      font-size: 0.85rem;
+    }
+    .history-table th {
+      text-align: left;
+      padding: 0.65rem 1rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .history-table td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 240px;
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table tr:hover td { background: var(--card-hover); }
+    .badge-ok  { color: #86efac; font-size: 0.75rem; }
+    .badge-err { color: #fca5a5; font-size: 0.75rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 580px) {
+      .current-card { flex-direction: column; text-align: center; padding: 1.5rem; gap: 1rem; }
+      .current-meta { justify-content: center; }
+      .forecast-row { grid-template-columns: 110px 36px 1fr auto; }
+      .forecast-precip { display: none; }
+      .forecast-desc { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header style="position:relative;">
+    <h1>&#9925; Weather</h1>
+    <a href="/history" style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:0.85rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">History &#8594;</a>
+  </header>
+
+  <form class="search-form" method="post">
+    <input
+      type="text"
+      name="city"
+      placeholder="Enter a US city (e.g. Chicago, IL)"
+      value="{{ city_q }}"
+      autofocus
+    >
+    <button type="submit">Search</button>
+  </form>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if weather %}
+
+  <!-- Current conditions -->
+  <div class="current-card">
+    <div class="current-icon">
+      <img src="{{ weather.current.icon }}" alt="{{ weather.current.shortForecast }}">
+    </div>
+    <div class="current-main">
+      <div class="current-location">
+        {% if weather.city and weather.state %}
+          {{ weather.city }}, {{ weather.state }}
+        {% else %}
+          {{ weather.display_name }}
+        {% endif %}
+      </div>
+      <div class="current-period">{{ weather.current.name }}</div>
+      <div class="current-temp">{{ weather.current.temperature }}&deg;{{ weather.current.temperatureUnit }}</div>
+      <div class="current-desc">{{ weather.current.shortForecast }}</div>
+      <div class="current-meta">
+        <span>&#128168; {{ weather.current.windSpeed }} {{ weather.current.windDirection }}</span>
+        {% if weather.current.precip is not none %}
+        <span>&#128167; {{ weather.current.precip }}% precip.</span>
+        {% endif %}
+        {% if weather.current.relativeHumidity and weather.current.relativeHumidity.value is not none %}
+        <span>&#128167; {{ weather.current.relativeHumidity.value }}% humidity</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Hourly forecast -->
+  <div class="section-label">Next 12 Hours</div>
+  <div class="hourly-wrap">
+    <div class="hourly-items">
+      {% for p in weather.hourly %}
+      <div class="hourly-item">
+        <div class="hourly-time">{{ p.hour }}</div>
+        <img src="{{ p.icon }}" alt="{{ p.shortForecast }}">
+        <div class="hourly-temp">{{ p.temperature }}&deg;</div>
+        {% if p.precip %}
+        <div class="hourly-precip">{{ p.precip }}%</div>
+        {% else %}
+        <div class="hourly-precip">&nbsp;</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 7-day forecast -->
+  <div class="section-label">7-Day Forecast</div>
+  <div class="forecast-list">
+    {% for p in weather.periods %}
+    <div class="forecast-row">
+      <div class="forecast-day {% if not p.isDaytime %}night{% endif %}">{{ p.name }}</div>
+      <img src="{{ p.icon }}" alt="{{ p.shortForecast }}">
+      <div class="forecast-desc">{{ p.shortForecast }}</div>
+      <div class="forecast-precip">
+        {% if p.precip %}{{ p.precip }}%{% endif %}
+      </div>
+      <div class="forecast-temp {% if not p.isDaytime %}night{% endif %}">
+        {{ p.temperature }}&deg;{{ p.temperatureUnit }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="note">
+    Weather data from <a href="https://www.weather.gov" target="_blank" rel="noopener">National Weather Service</a>
+    &middot; Geocoding by <a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener">Nominatim / OSM</a>
+    &middot; US locations only
+  </div>
+
+  {% else %}
+  <div class="note">Enter a US city name above to see the current forecast.</div>
+  {% endif %}
+
+  {% if recent %}
+  <div class="history-section">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.6rem;">
+      <div class="section-label" style="margin-bottom:0;">Recent Lookups</div>
+      <a href="/history" style="font-size:0.8rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">View all &#8594;</a>
+    </div>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>Query</th>
+          <th>Location</th>
+          <th>Conditions</th>
+          <th>When</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent %}
+        <tr>
+          <td>{{ row.query }}</td>
+          <td>
+            {% if row.nws_city and row.nws_state %}
+              {{ row.nws_city }}, {{ row.nws_state }}
+            {% elif row.display_name %}
+              {{ row.display_name | truncate(40, True) }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if row.current_temp is not none %}
+              {{ row.current_temp }}&deg;{{ row.current_unit }} &mdash; {{ row.current_forecast }}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ row.searched_at.strftime('%b %d %H:%M') }}</td>
+          <td>
+            {% if row.success %}
+              <span class="badge-ok">&#10003;</span>
+            {% else %}
+              <span class="badge-err" title="{{ row.error_message }}">&#10007;</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

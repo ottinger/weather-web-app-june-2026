@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lookup History — Weather</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-top: #0d1b2e;
+      --bg-mid: #112240;
+      --bg-bot: #0d2818;
+      --card: rgba(255,255,255,0.06);
+      --card-hover: rgba(255,255,255,0.10);
+      --border: rgba(255,255,255,0.10);
+      --text: #e8f4fd;
+      --muted: #7fb3d3;
+      --accent: #4fc3f7;
+      --green: #86efac;
+      --red: #fca5a5;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bot) 100%);
+      min-height: 100vh;
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2.5rem 1rem 4rem;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: color 0.15s;
+    }
+    .nav a:hover { color: var(--accent); }
+    .nav-sep { color: var(--border); }
+
+    /* ── Header ── */
+    header { margin-bottom: 2rem; }
+    header h1 {
+      font-size: 1.7rem;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+    header p { color: var(--muted); font-size: 0.9rem; }
+
+    /* ── Stats strip ── */
+    .stats {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.75rem;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 130px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 200;
+      line-height: 1;
+      color: var(--accent);
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .filter-bar input[type="text"] {
+      flex: 1;
+      min-width: 180px;
+      padding: 0.6rem 0.9rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .filter-bar input[type="text"]:focus { border-color: var(--accent); }
+    .filter-bar input::placeholder { color: var(--muted); }
+    .filter-bar select {
+      padding: 0.6rem 0.9rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .filter-bar select option { background: #112240; }
+    .filter-bar button {
+      padding: 0.6rem 1.2rem;
+      background: var(--accent);
+      color: #0d1b2e;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    .filter-bar button:hover { opacity: 0.85; }
+    .filter-bar .clear-btn {
+      padding: 0.6rem 1rem;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .filter-bar .clear-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Result count ── */
+    .result-info {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    thead th {
+      text-align: left;
+      padding: 0.7rem 1rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--card-hover); }
+
+    .col-time { white-space: nowrap; color: var(--muted); font-size: 0.8rem; }
+    .col-query { font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-location { color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-conditions { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-status { text-align: center; white-space: nowrap; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-ok  { background: rgba(134,239,172,0.12); color: var(--green); }
+    .badge-err { background: rgba(252,165,165,0.12); color: var(--red);   }
+
+    .error-tip {
+      max-width: 220px;
+      white-space: normal;
+      font-size: 0.78rem;
+      color: var(--red);
+      line-height: 1.4;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--muted);
+    }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .pagination a, .pagination span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.2rem;
+      height: 2.2rem;
+      padding: 0 0.6rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .pagination a:hover { background: var(--card-hover); color: var(--text); }
+    .pagination .current { background: var(--accent); color: #0d1b2e; font-weight: 700; border-color: var(--accent); }
+    .pagination .disabled { opacity: 0.35; pointer-events: none; }
+    .pagination .ellipsis { border: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="nav">
+    <a href="/">&#9925; Weather</a>
+    <span class="nav-sep">›</span>
+    <span style="color:var(--text)">History</span>
+  </nav>
+
+  <header>
+    <h1>Lookup History</h1>
+    <p>All past weather searches</p>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-value">{{ stats.total }}</div>
+      <div class="stat-label">Total lookups</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ stats.successful }}</div>
+      <div class="stat-label">Successful</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">
+        {% if stats.total %}
+          {{ "%.0f"|format(stats.successful / stats.total * 100) }}%
+        {% else %}—{% endif %}
+      </div>
+      <div class="stat-label">Success rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ stats.unique_cities }}</div>
+      <div class="stat-label">Unique cities</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form class="filter-bar" method="get" action="/history">
+    <input
+      type="text"
+      name="q"
+      placeholder="Filter by query…"
+      value="{{ query_filter }}"
+    >
+    <select name="status">
+      <option value="all"     {% if status_filter == 'all'     %}selected{% endif %}>All</option>
+      <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Successful</option>
+      <option value="failed"  {% if status_filter == 'failed'  %}selected{% endif %}>Failed</option>
+    </select>
+    <button type="submit">Filter</button>
+    {% if query_filter or status_filter != 'all' %}
+    <a class="clear-btn" href="/history">Clear</a>
+    {% endif %}
+  </form>
+
+  <!-- Result info -->
+  <div class="result-info">
+    {% if query_filter or status_filter != 'all' %}
+      {{ total }} result{{ 's' if total != 1 else '' }} matching current filters
+      &nbsp;&middot;&nbsp;
+    {% endif %}
+    Page {{ page }} of {{ total_pages }}
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Query</th>
+          <th>Location</th>
+          <th>Conditions</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if rows %}
+          {% for row in rows %}
+          <tr>
+            <td class="col-time">{{ row.searched_at.strftime('%b %d, %Y %H:%M') }}</td>
+            <td class="col-query" title="{{ row.query }}">{{ row.query }}</td>
+            <td class="col-location">
+              {% if row.nws_city and row.nws_state %}
+                {{ row.nws_city }}, {{ row.nws_state }}
+              {% elif row.display_name %}
+                {{ row.display_name | truncate(45, True) }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="col-conditions">
+              {% if row.current_temp is not none %}
+                {{ row.current_temp }}&deg;{{ row.current_unit }}
+                &nbsp;·&nbsp;
+                {{ row.current_forecast }}
+              {% elif row.error_message %}
+                <span class="error-tip">{{ row.error_message | truncate(60, True) }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="col-status">
+              {% if row.success %}
+                <span class="badge badge-ok">&#10003; OK</span>
+              {% else %}
+                <span class="badge badge-err" title="{{ row.error_message }}">&#10007; Failed</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5" class="empty">No lookups found.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {# Build base query string without page #}
+    {% set base = '?status=' ~ status_filter ~ ('&q=' ~ query_filter if query_filter else '') %}
+
+    <a class="{{ 'disabled' if page <= 1 else '' }}" href="{{ base }}&page={{ page - 1 }}">&lsaquo; Prev</a>
+
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+        <span class="current">{{ p }}</span>
+      {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+        <a href="{{ base }}&page={{ p }}">{{ p }}</a>
+      {% elif p == page - 3 or p == page + 3 %}
+        <span class="ellipsis">…</span>
+      {% endif %}
+    {% endfor %}
+
+    <a class="{{ 'disabled' if page >= total_pages else '' }}" href="{{ base }}&page={{ page + 1 }}">Next &rsaquo;</a>
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>
