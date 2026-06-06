@@ -4,6 +4,7 @@ from datetime import datetime
 import db
 
 app = Flask(__name__)
+app.json.sort_keys = False
 
 try:
     db.init_db()
@@ -58,11 +59,11 @@ def fetch_weather(lat, lon):
 
     loc = props.get('relativeLocation', {}).get('properties', {})
     return {
+        'city': loc.get('city', ''),
+        'state': loc.get('state', ''),
         'current': periods[0],
         'periods': periods,
         'hourly': hourly,
-        'city': loc.get('city', ''),
-        'state': loc.get('state', ''),
     }
 
 
@@ -86,10 +87,9 @@ def history_page():
     return render_template('history.html')
 
 
-@app.route('/api/weather', methods=['POST'])
+@app.route('/api/weather')
 def api_weather():
-    body = request.get_json(silent=True) or {}
-    city_q = body.get('city', '').strip()
+    city_q = request.args.get('city', '').strip()
     if not city_q:
         return jsonify({'error': 'City is required'}), 400
     try:

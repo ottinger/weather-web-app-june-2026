@@ -379,11 +379,7 @@
     errorBox.style.display = 'none';
 
     try {
-      const resp = await fetch('/api/weather', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({city}),
-      });
+      const resp = await fetch('/api/weather?' + new URLSearchParams({city}));
       const data = await resp.json();
       if (data.error) {
         errorBox.textContent = data.error;
