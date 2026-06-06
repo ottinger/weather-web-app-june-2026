@@ -8,7 +8,9 @@ from psycopg2.extras import RealDictCursor
 
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://localhost/weather')
+_db_user = os.environ.get('DB_USER')
+_db_password = os.environ.get('DB_PASSWORD')
+DATABASE_URL = os.environ.get('DATABASE_URL', f'postgresql://{_db_user}:{_db_password}@localhost/weather')
 
 _CREATE_CITIES = """
 CREATE TABLE IF NOT EXISTS cities (

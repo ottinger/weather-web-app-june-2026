@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weather{% if weather and weather.city %} — {{ weather.city }}, {{ weather.state }}{% endif %}</title>
+  <title>Weather</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -75,6 +75,7 @@
       white-space: nowrap;
     }
     .search-form button:hover { opacity: 0.85; }
+    .search-form button:disabled { opacity: 0.55; cursor: default; }
 
     /* ── Error ── */
     .error {
@@ -247,145 +248,166 @@
     <a href="/history" style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:0.85rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">History &#8594;</a>
   </header>
 
-  <form class="search-form" method="post">
-    <input
-      type="text"
-      name="city"
-      placeholder="Enter a US city (e.g. Chicago, IL)"
-      value="{{ city_q }}"
-      autofocus
-    >
-    <button type="submit">Search</button>
+  <form class="search-form" id="search-form">
+    <input type="text" id="city-input" placeholder="Enter a US city (e.g. Chicago, IL)" autofocus>
+    <button type="submit" id="search-btn">Search</button>
   </form>
 
-  {% if error %}
-  <div class="error">{{ error }}</div>
-  {% endif %}
+  <div class="error" id="error-box" style="display:none;"></div>
 
-  {% if weather %}
-
-  <!-- Current conditions -->
-  <div class="current-card">
-    <div class="current-icon">
-      <img src="{{ weather.current.icon }}" alt="{{ weather.current.shortForecast }}">
-    </div>
-    <div class="current-main">
-      <div class="current-location">
-        {% if weather.city and weather.state %}
-          {{ weather.city }}, {{ weather.state }}
-        {% else %}
-          {{ weather.display_name }}
-        {% endif %}
-      </div>
-      <div class="current-period">{{ weather.current.name }}</div>
-      <div class="current-temp">{{ weather.current.temperature }}&deg;{{ weather.current.temperatureUnit }}</div>
-      <div class="current-desc">{{ weather.current.shortForecast }}</div>
-      <div class="current-meta">
-        <span>&#128168; {{ weather.current.windSpeed }} {{ weather.current.windDirection }}</span>
-        {% if weather.current.precip is not none %}
-        <span>&#128167; {{ weather.current.precip }}% precip.</span>
-        {% endif %}
-        {% if weather.current.relativeHumidity and weather.current.relativeHumidity.value is not none %}
-        <span>&#128167; {{ weather.current.relativeHumidity.value }}% humidity</span>
-        {% endif %}
-      </div>
-    </div>
+  <div id="weather-result">
+    <div class="note">Enter a US city name above to see the current forecast.</div>
   </div>
 
-  <!-- Hourly forecast -->
-  <div class="section-label">Next 12 Hours</div>
-  <div class="hourly-wrap">
-    <div class="hourly-items">
-      {% for p in weather.hourly %}
-      <div class="hourly-item">
-        <div class="hourly-time">{{ p.hour }}</div>
-        <img src="{{ p.icon }}" alt="{{ p.shortForecast }}">
-        <div class="hourly-temp">{{ p.temperature }}&deg;</div>
-        {% if p.precip %}
-        <div class="hourly-precip">{{ p.precip }}%</div>
-        {% else %}
-        <div class="hourly-precip">&nbsp;</div>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- 7-day forecast -->
-  <div class="section-label">7-Day Forecast</div>
-  <div class="forecast-list">
-    {% for p in weather.periods %}
-    <div class="forecast-row">
-      <div class="forecast-day {% if not p.isDaytime %}night{% endif %}">{{ p.name }}</div>
-      <img src="{{ p.icon }}" alt="{{ p.shortForecast }}">
-      <div class="forecast-desc">{{ p.shortForecast }}</div>
-      <div class="forecast-precip">
-        {% if p.precip %}{{ p.precip }}%{% endif %}
-      </div>
-      <div class="forecast-temp {% if not p.isDaytime %}night{% endif %}">
-        {{ p.temperature }}&deg;{{ p.temperatureUnit }}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
-  <div class="note">
-    Weather data from <a href="https://www.weather.gov" target="_blank" rel="noopener">National Weather Service</a>
-    &middot; Geocoding by <a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener">Nominatim / OSM</a>
-    &middot; US locations only
-  </div>
-
-  {% else %}
-  <div class="note">Enter a US city name above to see the current forecast.</div>
-  {% endif %}
-
-  {% if recent %}
-  <div class="history-section">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.6rem;">
-      <div class="section-label" style="margin-bottom:0;">Recent Lookups</div>
-      <a href="/history" style="font-size:0.8rem;color:var(--muted);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">View all &#8594;</a>
-    </div>
-    <table class="history-table">
-      <thead>
-        <tr>
-          <th>Query</th>
-          <th>Location</th>
-          <th>Conditions</th>
-          <th>When</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in recent %}
-        <tr>
-          <td>{{ row.query }}</td>
-          <td>
-            {% if row.nws_city and row.nws_state %}
-              {{ row.nws_city }}, {{ row.nws_state }}
-            {% elif row.display_name %}
-              {{ row.display_name | truncate(40, True) }}
-            {% else %}—{% endif %}
-          </td>
-          <td>
-            {% if row.current_temp is not none %}
-              {{ row.current_temp }}&deg;{{ row.current_unit }} &mdash; {{ row.current_forecast }}
-            {% else %}—{% endif %}
-          </td>
-          <td>{{ row.searched_at.strftime('%b %d %H:%M') }}</td>
-          <td>
-            {% if row.success %}
-              <span class="badge-ok">&#10003;</span>
-            {% else %}
-              <span class="badge-err" title="{{ row.error_message }}">&#10007;</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
+  <div id="recent-section"></div>
 
 </div>
+<script>
+  const HINT = '<div class="note">Enter a US city name above to see the current forecast.</div>';
+
+  function esc(v) {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    const day = String(d.getDate()).padStart(2, '0');
+    const h   = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${mon} ${day} ${h}:${min}`;
+  }
+
+  function buildWeather(w) {
+    const cur = w.current;
+    const loc = (w.city && w.state) ? `${esc(w.city)}, ${esc(w.state)}` : esc(w.display_name);
+
+    const hourlyHtml = w.hourly.map(p => `
+      <div class="hourly-item">
+        <div class="hourly-time">${esc(p.hour)}</div>
+        <img src="${esc(p.icon)}" alt="${esc(p.shortForecast)}">
+        <div class="hourly-temp">${esc(p.temperature)}&deg;</div>
+        <div class="hourly-precip">${p.precip != null ? esc(p.precip) + '%' : '&nbsp;'}</div>
+      </div>`).join('');
+
+    const periodsHtml = w.periods.map(p => `
+      <div class="forecast-row">
+        <div class="forecast-day ${p.isDaytime ? '' : 'night'}">${esc(p.name)}</div>
+        <img src="${esc(p.icon)}" alt="${esc(p.shortForecast)}">
+        <div class="forecast-desc">${esc(p.shortForecast)}</div>
+        <div class="forecast-precip">${p.precip != null ? esc(p.precip) + '%' : ''}</div>
+        <div class="forecast-temp ${p.isDaytime ? '' : 'night'}">${esc(p.temperature)}&deg;${esc(p.temperatureUnit)}</div>
+      </div>`).join('');
+
+    const precipHtml    = cur.precip != null ? `<span>&#128167; ${esc(cur.precip)}% precip.</span>` : '';
+    const humidityHtml  = cur.relativeHumidity?.value != null ? `<span>&#128167; ${esc(cur.relativeHumidity.value)}% humidity</span>` : '';
+
+    return `
+      <div class="current-card">
+        <div class="current-icon"><img src="${esc(cur.icon)}" alt="${esc(cur.shortForecast)}"></div>
+        <div class="current-main">
+          <div class="current-location">${loc}</div>
+          <div class="current-period">${esc(cur.name)}</div>
+          <div class="current-temp">${esc(cur.temperature)}&deg;${esc(cur.temperatureUnit)}</div>
+          <div class="current-desc">${esc(cur.shortForecast)}</div>
+          <div class="current-meta">
+            <span>&#128168; ${esc(cur.windSpeed)} ${esc(cur.windDirection)}</span>
+            ${precipHtml}${humidityHtml}
+          </div>
+        </div>
+      </div>
+      <div class="section-label">Next 12 Hours</div>
+      <div class="hourly-wrap"><div class="hourly-items">${hourlyHtml}</div></div>
+      <div class="section-label">7-Day Forecast</div>
+      <div class="forecast-list">${periodsHtml}</div>
+      <div class="note">
+        Weather data from <a href="https://www.weather.gov" target="_blank" rel="noopener">National Weather Service</a>
+        &middot; Geocoding by <a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener">Nominatim / OSM</a>
+        &middot; US locations only
+      </div>`;
+  }
+
+  async function loadRecent() {
+    try {
+      const rows = await fetch('/api/recent').then(r => r.json());
+      const section = document.getElementById('recent-section');
+      if (!rows.length) { section.innerHTML = ''; return; }
+
+      const rowsHtml = rows.map(row => {
+        const loc = (row.nws_city && row.nws_state)
+          ? esc(`${row.nws_city}, ${row.nws_state}`)
+          : (row.display_name ? esc(row.display_name.substring(0, 40)) : '&mdash;');
+        const cond = row.current_temp != null
+          ? `${esc(row.current_temp)}&deg;${esc(row.current_unit)} &mdash; ${esc(row.current_forecast)}`
+          : '&mdash;';
+        const badge = row.success
+          ? '<span class="badge-ok">&#10003;</span>'
+          : `<span class="badge-err" title="${esc(row.error_message)}">&#10007;</span>`;
+        return `<tr>
+          <td>${esc(row.query)}</td>
+          <td>${loc}</td>
+          <td>${cond}</td>
+          <td>${fmtDate(row.searched_at)}</td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('');
+
+      section.innerHTML = `
+        <div class="history-section">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.6rem;">
+            <div class="section-label" style="margin-bottom:0;">Recent Lookups</div>
+            <a href="/history" style="font-size:0.8rem;color:var(--muted);text-decoration:none;transition:color 0.15s;"
+               onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">View all &#8594;</a>
+          </div>
+          <table class="history-table">
+            <thead><tr><th>Query</th><th>Location</th><th>Conditions</th><th>When</th><th>Status</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`;
+    } catch { /* silently fail */ }
+  }
+
+  document.getElementById('search-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const city = document.getElementById('city-input').value.trim();
+    if (!city) return;
+
+    const btn = document.getElementById('search-btn');
+    const errorBox = document.getElementById('error-box');
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+    errorBox.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/weather', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({city}),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        errorBox.textContent = data.error;
+        errorBox.style.display = '';
+        document.getElementById('weather-result').innerHTML = HINT;
+      } else {
+        const loc = (data.weather.city && data.weather.state)
+          ? `${data.weather.city}, ${data.weather.state}`
+          : data.weather.display_name;
+        document.title = `Weather — ${loc}`;
+        document.getElementById('weather-result').innerHTML = buildWeather(data.weather);
+        loadRecent();
+      }
+    } catch {
+      errorBox.textContent = 'Network error. Please try again.';
+      errorBox.style.display = '';
+      document.getElementById('weather-result').innerHTML = HINT;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search';
+    }
+  });
+
+  loadRecent();
+</script>
 </body>
 </html>

@@ -266,59 +266,38 @@
     <p>All past weather searches</p>
   </header>
 
-  <!-- Stats -->
   <div class="stats">
     <div class="stat-card">
-      <div class="stat-value">{{ stats.total }}</div>
+      <div class="stat-value" id="stat-total">—</div>
       <div class="stat-label">Total lookups</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">{{ stats.successful }}</div>
+      <div class="stat-value" id="stat-successful">—</div>
       <div class="stat-label">Successful</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">
-        {% if stats.total %}
-          {{ "%.0f"|format(stats.successful / stats.total * 100) }}%
-        {% else %}—{% endif %}
-      </div>
+      <div class="stat-value" id="stat-rate">—</div>
       <div class="stat-label">Success rate</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value">{{ stats.unique_cities }}</div>
+      <div class="stat-value" id="stat-cities">—</div>
       <div class="stat-label">Unique cities</div>
     </div>
   </div>
 
-  <!-- Filters -->
-  <form class="filter-bar" method="get" action="/history">
-    <input
-      type="text"
-      name="q"
-      placeholder="Filter by query…"
-      value="{{ query_filter }}"
-    >
-    <select name="status">
-      <option value="all"     {% if status_filter == 'all'     %}selected{% endif %}>All</option>
-      <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Successful</option>
-      <option value="failed"  {% if status_filter == 'failed'  %}selected{% endif %}>Failed</option>
+  <form class="filter-bar" id="filter-form">
+    <input type="text" id="q-input" placeholder="Filter by query…">
+    <select id="status-select">
+      <option value="all">All</option>
+      <option value="success">Successful</option>
+      <option value="failed">Failed</option>
     </select>
     <button type="submit">Filter</button>
-    {% if query_filter or status_filter != 'all' %}
-    <a class="clear-btn" href="/history">Clear</a>
-    {% endif %}
+    <a class="clear-btn" id="clear-btn" href="/history" style="display:none;">Clear</a>
   </form>
 
-  <!-- Result info -->
-  <div class="result-info">
-    {% if query_filter or status_filter != 'all' %}
-      {{ total }} result{{ 's' if total != 1 else '' }} matching current filters
-      &nbsp;&middot;&nbsp;
-    {% endif %}
-    Page {{ page }} of {{ total_pages }}
-  </div>
+  <div class="result-info" id="result-info"></div>
 
-  <!-- Table -->
   <div class="table-wrap">
     <table>
       <thead>
@@ -330,66 +309,148 @@
           <th>Status</th>
         </tr>
       </thead>
-      <tbody>
-        {% if rows %}
-          {% for row in rows %}
-          <tr>
-            <td class="col-time">{{ row.searched_at.strftime('%b %d, %Y %H:%M') }}</td>
-            <td class="col-query" title="{{ row.query }}">{{ row.query }}</td>
-            <td class="col-location">
-              {% if row.nws_city and row.nws_state %}
-                {{ row.nws_city }}, {{ row.nws_state }}
-              {% elif row.display_name %}
-                {{ row.display_name | truncate(45, True) }}
-              {% else %}—{% endif %}
-            </td>
-            <td class="col-conditions">
-              {% if row.current_temp is not none %}
-                {{ row.current_temp }}&deg;{{ row.current_unit }}
-                &nbsp;·&nbsp;
-                {{ row.current_forecast }}
-              {% elif row.error_message %}
-                <span class="error-tip">{{ row.error_message | truncate(60, True) }}</span>
-              {% else %}—{% endif %}
-            </td>
-            <td class="col-status">
-              {% if row.success %}
-                <span class="badge badge-ok">&#10003; OK</span>
-              {% else %}
-                <span class="badge badge-err" title="{{ row.error_message }}">&#10007; Failed</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        {% else %}
-          <tr><td colspan="5" class="empty">No lookups found.</td></tr>
-        {% endif %}
-      </tbody>
+      <tbody id="history-tbody"></tbody>
     </table>
   </div>
 
-  <!-- Pagination -->
-  {% if total_pages > 1 %}
-  <div class="pagination">
-    {# Build base query string without page #}
-    {% set base = '?status=' ~ status_filter ~ ('&q=' ~ query_filter if query_filter else '') %}
-
-    <a class="{{ 'disabled' if page <= 1 else '' }}" href="{{ base }}&page={{ page - 1 }}">&lsaquo; Prev</a>
-
-    {% for p in range(1, total_pages + 1) %}
-      {% if p == page %}
-        <span class="current">{{ p }}</span>
-      {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-        <a href="{{ base }}&page={{ p }}">{{ p }}</a>
-      {% elif p == page - 3 or p == page + 3 %}
-        <span class="ellipsis">…</span>
-      {% endif %}
-    {% endfor %}
-
-    <a class="{{ 'disabled' if page >= total_pages else '' }}" href="{{ base }}&page={{ page + 1 }}">Next &rsaquo;</a>
-  </div>
-  {% endif %}
+  <div id="pagination-wrap"></div>
 
 </div>
+<script>
+  function esc(v) {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    const day = String(d.getDate()).padStart(2, '0');
+    const h   = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${mon} ${day}, ${d.getFullYear()} ${h}:${min}`;
+  }
+
+  function renderStats(stats) {
+    document.getElementById('stat-total').textContent     = stats.total;
+    document.getElementById('stat-successful').textContent = stats.successful;
+    document.getElementById('stat-rate').textContent      = stats.total
+      ? Math.round(stats.successful / stats.total * 100) + '%' : '—';
+    document.getElementById('stat-cities').textContent    = stats.unique_cities;
+  }
+
+  function renderResultInfo(total, page, totalPages, q, status) {
+    let html = '';
+    if (q || status !== 'all') {
+      html += `${total} result${total !== 1 ? 's' : ''} matching current filters &nbsp;&middot;&nbsp; `;
+    }
+    html += `Page ${page} of ${totalPages}`;
+    document.getElementById('result-info').innerHTML = html;
+  }
+
+  function renderTable(rows) {
+    if (!rows.length) {
+      document.getElementById('history-tbody').innerHTML =
+        '<tr><td colspan="5" class="empty">No lookups found.</td></tr>';
+      return;
+    }
+    document.getElementById('history-tbody').innerHTML = rows.map(row => {
+      const loc = (row.nws_city && row.nws_state)
+        ? esc(`${row.nws_city}, ${row.nws_state}`)
+        : (row.display_name ? esc(row.display_name.substring(0, 45)) : '—');
+
+      let cond;
+      if (row.current_temp != null) {
+        cond = `${esc(row.current_temp)}&deg;${esc(row.current_unit)} &nbsp;&middot;&nbsp; ${esc(row.current_forecast)}`;
+      } else if (row.error_message) {
+        cond = `<span class="error-tip">${esc(row.error_message.substring(0, 60))}</span>`;
+      } else {
+        cond = '—';
+      }
+
+      const badge = row.success
+        ? '<span class="badge badge-ok">&#10003; OK</span>'
+        : `<span class="badge badge-err" title="${esc(row.error_message)}">&#10007; Failed</span>`;
+
+      return `<tr>
+        <td class="col-time">${fmtDate(row.searched_at)}</td>
+        <td class="col-query" title="${esc(row.query)}">${esc(row.query)}</td>
+        <td class="col-location">${loc}</td>
+        <td class="col-conditions">${cond}</td>
+        <td class="col-status">${badge}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPagination(page, totalPages, q, status) {
+    const wrap = document.getElementById('pagination-wrap');
+    if (totalPages <= 1) { wrap.innerHTML = ''; return; }
+
+    const base = `/history?status=${encodeURIComponent(status)}${q ? '&q=' + encodeURIComponent(q) : ''}`;
+    const pageLink = (p, label, cls) => {
+      if (cls === 'current')  return `<span class="current">${label}</span>`;
+      if (cls === 'disabled') return `<a class="disabled">${label}</a>`;
+      if (cls === 'ellipsis') return `<span class="ellipsis">&hellip;</span>`;
+      return `<a href="${base}&page=${p}">${label}</a>`;
+    };
+
+    let html = pageLink(page - 1, '&lsaquo; Prev', page <= 1 ? 'disabled' : '');
+    for (let p = 1; p <= totalPages; p++) {
+      if (p === page) {
+        html += pageLink(p, p, 'current');
+      } else if (p === 1 || p === totalPages || (p >= page - 2 && p <= page + 2)) {
+        html += pageLink(p, p);
+      } else if (p === page - 3 || p === page + 3) {
+        html += pageLink(p, p, 'ellipsis');
+      }
+    }
+    html += pageLink(page + 1, 'Next &rsaquo;', page >= totalPages ? 'disabled' : '');
+
+    wrap.innerHTML = `<div class="pagination">${html}</div>`;
+  }
+
+  async function load() {
+    const p      = new URLSearchParams(location.search);
+    const page   = parseInt(p.get('page') || '1');
+    const q      = p.get('q') || '';
+    const status = p.get('status') || 'all';
+
+    document.getElementById('q-input').value        = q;
+    document.getElementById('status-select').value  = status;
+    document.getElementById('clear-btn').style.display = (q || status !== 'all') ? '' : 'none';
+
+    try {
+      const url  = `/api/history?page=${page}&q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`;
+      const data = await fetch(url).then(r => r.json());
+      renderStats(data.stats);
+      renderResultInfo(data.total, data.page, data.total_pages, q, status);
+      renderTable(data.rows);
+      renderPagination(data.page, data.total_pages, q, status);
+    } catch { /* silently fail */ }
+  }
+
+  document.getElementById('filter-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const q      = document.getElementById('q-input').value.trim();
+    const status = document.getElementById('status-select').value;
+    const params = new URLSearchParams({page: '1'});
+    if (q) params.set('q', q);
+    if (status !== 'all') params.set('status', status);
+    history.pushState({}, '', '/history?' + params);
+    load();
+  });
+
+  document.addEventListener('click', e => {
+    const link = e.target.closest('.pagination a:not(.disabled), #clear-btn');
+    if (link) {
+      e.preventDefault();
+      history.pushState({}, '', link.getAttribute('href'));
+      load();
+    }
+  });
+
+  window.addEventListener('popstate', load);
+
+  load();
+</script>
 </body>
 </html>
