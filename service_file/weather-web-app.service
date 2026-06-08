@@ -1,0 +1,13 @@
+[Unit]
+Description=Weather Web App Service
+After=network.target
+
+[Service]
+Type=simple
+User=USERNAME
+WorkingDirectory=/home/USERNAME/weather-web-app-june-2026
+ExecStart=/home/USERNAME/weather-web-app-june-2026/venv/bin/python3 -u app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
