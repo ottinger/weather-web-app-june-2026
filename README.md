@@ -6,6 +6,9 @@ It uses the National Weather Service's API (api.weather.gov) for weather data. S
 
 Much of the code was generated using Anthropic's Claude Code LLM. Some changes did have to be made from what the model initially generated. These include: switching from server-side rendering to using a REST API and client-side AJAX, changing at least one API endpoint (/api/weather/) from POST to GET, and using password-based authentication for PostgreSQL instead of passwordless/trust authentication.
 
+Currently it only works for US weather, due to use of the NWS API. One improvement that could be made would be to use an API that supports international weather. The Nominatim service is not US-centric though - typing in "DC" (as in Washington, DC) will return the "api.weather.gov only covers US locations" error, as it returns the Capital District of Bogotá, Colombia. Of course, so will "Naples" (Naples, FL) and "Prague" (Prague, OK). This could be remedied by using a geocoding API that better handles these cases, or more strictly enforcing input format.
+
+
 ## Setup
 
 ### Database setup
